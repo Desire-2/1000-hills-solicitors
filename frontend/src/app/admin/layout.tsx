@@ -8,7 +8,7 @@ export default function AdminLayoutWrapper({
   children: React.ReactNode;
 }) {
   return (
-    <ProtectedRoute requiredRole={[Role.SUPER_ADMIN, Role.ADMIN]}>
+    <ProtectedRoute requiredRole={[Role.SUPER_ADMIN, Role.CASE_MANAGER, Role.CONTENT_EDITOR]}>
       <AdminLayout>{children}</AdminLayout>
     </ProtectedRoute>
   );
