@@ -1,6 +1,6 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Dependencies
 /node_modules
 /.pnp
 .pnp.*
@@ -9,33 +9,113 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+package-lock.json
+yarn.lock
 
-# env files (can opt-in for committing if needed)
-.env*
+# Testing
+/coverage
+*.lcov
+.nyc_output
 
-# vercel
+# Next.js
+/.next/
+/out/
+.next
+next-env.d.ts
+
+# Production
+/build
+/dist
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env*.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vercel
 .vercel
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
+tsconfig.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.vscode-test
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
+*.pem
+*.key
+*.crt
+
+# Turbopack
+.turbo
+
+# Local development
+.temp
+.cache
+.parcel-cache
+
+# Storybook
+storybook-static
+
+# PWA files
+public/sw.js
+public/workbox-*.js
+public/worker-*.js
+public/sw.js.map
+public/workbox-*.js.map
+public/worker-*.js.map
+
+# Sentry
+.sentryclirc
+
+# Logs
+logs
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.history
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+/playwright-report/
+/playwright/.cache/
+/test-results/
+/e2e/.auth/
+
+# Build info
+.next/trace
+
