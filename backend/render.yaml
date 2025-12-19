@@ -22,7 +22,9 @@ services:
           name: 1000-hills-solicitors-db
           property: connectionString
       - key: FRONTEND_URL
-        value: https://your-frontend-domain.vercel.app
+        value: https://1000-hills-solicitors.vercel.app
+      - key: CORS_ORIGINS
+        value: http://localhost:3000,http://localhost:3001,https://1000-hills-solicitors.vercel.app
       - key: PORT
         value: 10000
 

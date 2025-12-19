@@ -59,7 +59,7 @@ def create_app(config_name=None):
     
     jwt.init_app(app)
     bcrypt.init_app(app)
-    socketio.init_app(app, cors_allowed_origins=["http://localhost:3000", "http://127.0.0.1:3000"])
+    socketio.init_app(app, cors_allowed_origins=allowed_origins)
     
     # JWT error handlers
     @jwt.expired_token_loader
