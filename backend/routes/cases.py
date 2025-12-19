@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from services import CaseService
 from utils import role_required, case_to_dict, get_current_user, validate_required_fields
-from models import Role
+from models import Role, Priority
 
 case_bp = Blueprint('case', __name__, url_prefix='/cases')
 
@@ -16,32 +16,58 @@ case_bp = Blueprint('case', __name__, url_prefix='/cases')
 @jwt_required()
 def submit_case():
     """Client submits a new case."""
-    data = request.get_json()
-    current_user_id = get_jwt_identity()
-    
-    # Validate required fields
-    is_valid, error_msg = validate_required_fields(
-        data,
-        ['title', 'category', 'description']
-    )
-    
-    if not is_valid:
-        return jsonify({"msg": error_msg}), 400
+    try:
+        data = request.get_json()
+        current_user_id = get_jwt_identity()
+        
+        print(f"[DEBUG] POST /cases/ - User ID: {current_user_id}")
+        print(f"[DEBUG] Request data: {data}")
+        
+        # Validate required fields
+        is_valid, error_msg = validate_required_fields(
+            data,
+            ['title', 'category', 'description']
+        )
+        
+        if not is_valid:
+            print(f"[DEBUG] Validation failed: {error_msg}")
+            return jsonify({"msg": error_msg}), 400
 
-    case, error = CaseService.create_case(
-        title=data['title'],
-        description=data['description'],
-        category=data['category'],
-        client_id=current_user_id
-    )
-    
-    if error:
-        return jsonify({"msg": "Failed to create case", "error": error}), 500
-    
-    return jsonify({
-        "msg": "Case submitted successfully",
-        "case": case_to_dict(case)
-    }), 201
+        # Get priority if provided, default to MEDIUM
+        priority = Priority.MEDIUM
+        if 'priority' in data and data['priority']:
+            try:
+                priority = Priority[data['priority'].upper()]
+                print(f"[DEBUG] Priority set to: {priority}")
+            except (KeyError, AttributeError) as e:
+                print(f"[DEBUG] Priority conversion error: {e}, using default MEDIUM")
+                priority = Priority.MEDIUM
+
+        print(f"[DEBUG] Creating case with category: {data['category']}, priority: {priority}")
+        
+        case, error = CaseService.create_case(
+            title=data['title'],
+            description=data['description'],
+            category=data['category'],
+            client_id=current_user_id,
+            priority=priority
+        )
+        
+        if error:
+            print(f"[ERROR] Failed to create case: {error}")
+            return jsonify({"msg": "Failed to create case", "error": error}), 500
+        
+        print(f"[DEBUG] Case created successfully: {case.case_id}")
+        return jsonify({
+            "msg": "Case submitted successfully",
+            "case": case_to_dict(case)
+        }), 201
+        
+    except Exception as e:
+        print(f"[ERROR] Unexpected error in submit_case: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"msg": "Internal server error", "error": str(e)}), 500
 
 
 @case_bp.route('/', methods=['GET'])
@@ -49,7 +75,9 @@ def submit_case():
 def get_client_cases():
     """Client views their own cases."""
     current_user_id = get_jwt_identity()
+    print(f"[DEBUG] GET /cases/ - Current user ID: {current_user_id}")
     cases = CaseService.get_cases_by_client(current_user_id)
+    print(f"[DEBUG] Found {len(cases)} cases for user {current_user_id}")
     
     return jsonify([case_to_dict(case) for case in cases]), 200
 
@@ -121,6 +149,63 @@ def update_case(case_id):
         "case": case_to_dict(case)
     }), 200
 
+@case_bp.route('/admin/<int:case_id>', methods=['DELETE'])
+@role_required(Role.SUPER_ADMIN)
+def delete_case(case_id):
+    """Admin deletes/closes a case."""
+    success, error = CaseService.delete_case(case_id)
+    
+    if error:
+        return jsonify({"msg": error}), 404
+    
+    return jsonify({"msg": "Case closed successfully"}), 200
+
+
+@case_bp.route('/statistics', methods=['GET'])
+@jwt_required()
+def get_statistics():
+    """Get case statistics for dashboard."""
+    current_user = get_current_user()
+    print(f"[DEBUG] GET /cases/statistics - User ID: {current_user.id}, Role: {current_user.role}")
+    
+    stats, error = CaseService.get_case_statistics(
+        user_id=current_user.id,
+        role=current_user.role
+    )
+    
+    if error:
+        print(f"[DEBUG] Statistics error: {error}")
+        return jsonify({"msg": error}), 500
+    
+    print(f"[DEBUG] Statistics result: {stats}")
+    return jsonify(stats), 200
+
+
+@case_bp.route('/admin/filter', methods=['GET'])
+@role_required(Role.CASE_MANAGER, Role.SUPER_ADMIN)
+def filter_cases():
+    """Filter cases by multiple criteria."""
+    status = request.args.get('status')
+    category = request.args.get('category')
+    priority = request.args.get('priority')
+    assigned_to_id = request.args.get('assigned_to_id', type=int)
+    
+    cases = CaseService.filter_cases(
+        status=status,
+        category=category,
+        priority=priority,
+        assigned_to_id=assigned_to_id
+    )
+    
+    return jsonify([case_to_dict(case) for case in cases]), 200
+
+
+@case_bp.route('/admin/assigned/<int:user_id>', methods=['GET'])
+@role_required(Role.CASE_MANAGER, Role.SUPER_ADMIN)
+def get_assigned_cases(user_id):
+    """Get cases assigned to a specific user."""
+    cases = CaseService.get_cases_by_assignee(user_id)
+    return jsonify([case_to_dict(case) for case in cases]), 200
 
 # --- Service/CMS Routes (Placeholder) ---
 

@@ -11,16 +11,18 @@ def generate_case_id():
     """Generate a unique case ID in format: 1000HILLS-YYYY-NNN"""
     current_year = datetime.now().year
     
-    # Get the last case for the current year
-    last_case = db.session.execute(
-        select(Case)
+    # Get only the case_id field from the last case for the current year
+    # This avoids loading invalid enum values from old data
+    result = db.session.execute(
+        select(Case.case_id)
         .filter(Case.case_id.like(f'1000HILLS-{current_year}-%'))
         .order_by(Case.id.desc())
+        .limit(1)
     ).scalar_one_or_none()
     
-    if last_case:
+    if result:
         # Extract the sequence number from the last case ID
-        last_sequence = int(last_case.case_id.split('-')[-1])
+        last_sequence = int(result.split('-')[-1])
         next_sequence = last_sequence + 1
     else:
         # First case of the year

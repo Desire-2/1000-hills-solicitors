@@ -17,7 +17,7 @@ class Case(Base):
     title = Column(String, nullable=False)
     description = Column(Text)
     category = Column(Enum(CaseCategory), nullable=False)
-    status = Column(Enum(CaseStatus), default=CaseStatus.NEW, nullable=False)
+    status = Column(Enum(CaseStatus), default=CaseStatus.PENDING, nullable=False)
     priority = Column(Enum(Priority), default=Priority.MEDIUM, nullable=False)
     
     # Foreign Keys

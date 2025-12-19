@@ -15,16 +15,19 @@ class Role(enum.Enum):
 
 class CaseCategory(enum.Enum):
     """Case category types."""
-    LEGAL_CONSULTANCY = "LEGAL_CONSULTANCY"
-    MEDIATION = "MEDIATION"
-    LITIGATION = "LITIGATION"
+    IMMIGRATION = "IMMIGRATION"
+    FAMILY_LAW = "FAMILY_LAW"
+    CRIMINAL_DEFENSE = "CRIMINAL_DEFENSE"
+    CIVIL_LITIGATION = "CIVIL_LITIGATION"
+    CORPORATE_LAW = "CORPORATE_LAW"
+    PROPERTY_LAW = "PROPERTY_LAW"
+    EMPLOYMENT_LAW = "EMPLOYMENT_LAW"
     OTHER = "OTHER"
 
 
 class CaseStatus(enum.Enum):
     """Case status workflow stages."""
-    NEW = "NEW"
-    IN_REVIEW = "IN_REVIEW"
+    PENDING = "PENDING"
     IN_PROGRESS = "IN_PROGRESS"
     AWAITING_CLIENT = "AWAITING_CLIENT"
     RESOLVED = "RESOLVED"

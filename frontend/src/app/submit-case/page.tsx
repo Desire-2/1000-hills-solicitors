@@ -1,14 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Upload, CheckCircle, ArrowLeft, Shield, Clock, FileText } from 'lucide-react';
+import { ArrowRight, Upload, CheckCircle, ArrowLeft, Shield, Clock, FileText, Loader2, AlertCircle, UserCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
+import apiService from '@/lib/api';
+import { Role } from '@/lib/types';
 
 export default function SubmitCase() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submittedCaseId, setSubmittedCaseId] = useState<number | null>(null);
+  const [submissionTimestamp, setSubmissionTimestamp] = useState<string>('');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [autoFilled, setAutoFilled] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -20,30 +33,231 @@ export default function SubmitCase() {
     files: [] as File[],
   });
 
+  // Role-based access control & auto-fill user data
+  useEffect(() => {
+    if (!authLoading) {
+      // Redirect non-CLIENT users
+      if (user && user.role !== Role.CLIENT) {
+        router.push('/dashboard?message=Only clients can submit cases. Please contact an admin for assistance.');
+        return;
+      }
+
+      // Auto-fill form with user profile data
+      if (user && !autoFilled) {
+        setFormData(prev => ({
+          ...prev,
+          name: user.name || prev.name,
+          email: user.email || prev.email,
+          // Phone would be filled if it exists in user profile
+        }));
+        setAutoFilled(true);
+      }
+    }
+  }, [user, authLoading, router, autoFilled]);
+
+  // Load draft from localStorage
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('case-submission-draft');
+    if (savedDraft && !user) {
+      try {
+        const draft = JSON.parse(savedDraft);
+        setFormData(prev => ({ ...prev, ...draft }));
+      } catch (e) {
+        console.error('Failed to load draft:', e);
+      }
+    }
+  }, [user]);
+
+  // Save draft to localStorage
+  useEffect(() => {
+    if (!user && (formData.title || formData.description)) {
+      localStorage.setItem('case-submission-draft', JSON.stringify({
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        urgency: formData.urgency,
+      }));
+    }
+  }, [formData.title, formData.description, formData.category, formData.urgency, user]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Alt+N for Next (when not in step 3)
+      if (e.altKey && e.key === 'n' && step < 3) {
+        e.preventDefault();
+        handleNext();
+      }
+      // Alt+P for Previous (when not in step 1)
+      if (e.altKey && e.key === 'p' && step > 1 && step < 4) {
+        e.preventDefault();
+        handlePrev();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [step]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error for this field when user starts typing
+    if (formErrors[name]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const clearDraft = () => {
+    localStorage.removeItem('case-submission-draft');
+    setFormData(prev => ({
+      ...prev,
+      title: '',
+      description: '',
+      category: 'CORPORATE_LAW',
+      urgency: 'MEDIUM',
+    }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFormData(prev => ({ ...prev, files: Array.from(e.target.files || []) }));
+      const files = Array.from(e.target.files || []);
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      const invalidFiles = files.filter(file => file.size > maxSize);
+      
+      if (invalidFiles.length > 0) {
+        setFormErrors(prev => ({
+          ...prev,
+          files: `Some files exceed the 10MB limit: ${invalidFiles.map(f => f.name).join(', ')}`
+        }));
+        return;
+      }
+      
+      setFormData(prev => ({ ...prev, files }));
+      if (formErrors.files) {
+        setFormErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.files;
+          return newErrors;
+        });
+      }
     }
   };
 
+  const validateStep = (stepNum: number): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (stepNum === 1) {
+      if (!formData.name.trim()) {
+        errors.name = 'Full name is required';
+      }
+      if (!formData.email.trim()) {
+        errors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        errors.email = 'Please enter a valid email address';
+      }
+      if (!formData.phone.trim()) {
+        errors.phone = 'Phone number is required';
+      } else if (!/^[\d\s\+\-\(\)]+$/.test(formData.phone)) {
+        errors.phone = 'Please enter a valid phone number';
+      }
+    }
+
+    if (stepNum === 2) {
+      if (!formData.category) {
+        errors.category = 'Please select a case category';
+      }
+      if (!formData.title.trim()) {
+        errors.title = 'Case title is required';
+      }
+      if (!formData.description.trim()) {
+        errors.description = 'Case description is required';
+      } else if (formData.description.length < 50) {
+        errors.description = `Description must be at least 50 characters (currently ${formData.description.length})`;
+      }
+      if (!formData.urgency) {
+        errors.urgency = 'Please select an urgency level';
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleNext = () => {
-    if (step < 3) setStep(step + 1);
+    if (validateStep(step)) {
+      if (step < 3) setStep(step + 1);
+    }
   };
 
   const handlePrev = () => {
     if (step > 1) setStep(step - 1);
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Submit to backend API
-    console.log('Submitting case:', formData);
-    setStep(4); // Show confirmation
+    setError(null);
+
+    if (!validateStep(2)) {
+      setStep(2); // Go back to step 2 if validation fails
+      return;
+    }
+
+    // Check if user is authenticated and is a CLIENT
+    if (!user && !authLoading) {
+      // Redirect to login with return URL
+      router.push('/login?redirect=/submit-case&message=Please login or register to submit a case');
+      return;
+    }
+
+    // Additional check: Ensure user is CLIENT role
+    if (user && user.role !== Role.CLIENT) {
+      setError('Only clients can submit cases. Please contact support for assistance.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Submit case to backend
+      const response = await apiService.createCase({
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        priority: formData.urgency, // Map urgency to priority
+      });
+
+      if (response.error) {
+        setError(response.error);
+        setLoading(false);
+        return;
+      }
+
+      // Success - store case ID and move to confirmation
+      const responseData = response.data as any;
+      if (responseData?.case?.id) {
+        setSubmittedCaseId(responseData.case.id);
+      } else if (responseData?.id) {
+        setSubmittedCaseId(responseData.id);
+      }
+
+      // Set submission timestamp
+      setSubmissionTimestamp(new Date().toLocaleString());
+
+      // Clear localStorage draft on successful submission
+      localStorage.removeItem('case-submission-draft');
+      
+      setStep(4);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit case. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const steps = [
@@ -70,6 +284,35 @@ export default function SubmitCase() {
       {/* Trust Indicators */}
       <section className="py-8 px-4 bg-white border-b">
         <div className="max-w-4xl mx-auto">
+          {/* Auth Warning */}
+          {!user && !authLoading && step < 4 && (
+            <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-blue-800 font-medium">Login Required</p>
+                <p className="text-blue-700 text-sm mt-1">
+                  You need to be logged in to submit a case. You'll be redirected to login when you submit the form.{' '}
+                  <Link href="/login?redirect=/submit-case" className="underline font-medium">
+                    Login now
+                  </Link>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Auto-fill Success Message */}
+          {user && user.role === Role.CLIENT && autoFilled && step === 1 && (
+            <div className="mb-6 p-4 bg-green-50 border-2 border-green-200 rounded-lg flex items-start gap-3">
+              <UserCheck className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-green-800 font-medium">Profile Information Loaded</p>
+                <p className="text-green-700 text-sm mt-1">
+                  Your contact details have been automatically filled from your profile. You can edit them if needed.
+                </p>
+              </div>
+            </div>
+          )}
+          
           <div className="flex flex-wrap justify-center gap-8 text-sm">
             <div className="flex items-center gap-2 text-gray-700">
               <Shield className="w-5 h-5 text-1000-green" />
@@ -121,36 +364,85 @@ export default function SubmitCase() {
 
       {/* Form */}
       <div className="max-w-4xl mx-auto px-4 pb-20">
+        {/* Global Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-red-800 font-medium">Submission Failed</p>
+              <p className="text-red-600 text-sm mt-1">{error}</p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
           {/* Step 1: Contact Information */}
           {step === 1 && (
             <div className="animate-fade-in">
-              <h2 className="text-3xl font-bold mb-2 text-1000-charcoal">Contact Information</h2>
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-3xl font-bold text-1000-charcoal">Contact Information</h2>
+                {user && user.role === Role.CLIENT && (
+                  <div className="flex items-center gap-2 text-green-600 text-sm">
+                    <UserCheck className="w-4 h-4" />
+                    <span>Auto-filled from profile</span>
+                  </div>
+                )}
+              </div>
               <p className="text-gray-600 mb-8">Please provide your contact details so we can reach you</p>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Full Name * 
+                    {user && formData.name === user.name && (
+                      <span className="ml-2 text-xs text-green-600">(from profile)</span>
+                    )}
+                  </label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-1000-blue transition-colors"
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
+                      user && formData.name === user.name ? 'bg-green-50 border-green-200' :
+                      formErrors.name ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-1000-blue'
+                    }`}
                     placeholder="John Doe"
                     required
+                    readOnly={user?.role !== Role.CLIENT}
                   />
+                  {formErrors.name && (
+                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {formErrors.name}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address *
+                    {user && formData.email === user.email && (
+                      <span className="ml-2 text-xs text-green-600">(from profile)</span>
+                    )}
+                  </label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-1000-blue transition-colors"
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
+                      user && formData.email === user.email ? 'bg-green-50 border-green-200' :
+                      formErrors.email ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-1000-blue'
+                    }`}
                     placeholder="john@example.com"
                     required
+                    readOnly={user?.role !== Role.CLIENT}
                   />
+                  {formErrors.email && (
+                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {formErrors.email}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
@@ -159,10 +451,18 @@ export default function SubmitCase() {
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-1000-blue transition-colors"
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
+                      formErrors.phone ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-1000-blue'
+                    }`}
                     placeholder="+250 788 123 456"
                     required
                   />
+                  {formErrors.phone && (
+                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {formErrors.phone}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -171,27 +471,56 @@ export default function SubmitCase() {
           {/* Step 2: Case Details */}
           {step === 2 && (
             <div className="animate-fade-in">
-              <h2 className="text-3xl font-bold mb-2 text-1000-charcoal">Case Details</h2>
-              <p className="text-gray-600 mb-8">Tell us about your legal matter</p>
-              <div className="space-y-6">
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex-1">
+                  <h2 className="text-3xl font-bold text-1000-charcoal">Case Details</h2>
+                  <p className="text-gray-600 mt-2">Tell us about your legal matter</p>
+                  {!user && (formData.title || formData.description) && (
+                    <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Draft saved locally
+                    </p>
+                  )}
+                </div>
+                {!user && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={clearDraft}
+                    className="text-gray-600 hover:text-red-600 hover:border-red-300"
+                  >
+                    Clear Draft
+                  </Button>
+                )}
+              </div>
+              <div className="space-y-6 mt-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Case Category *</label>
                   <select
                     name="category"
                     value={formData.category}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-1000-blue transition-colors"
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
+                      formErrors.category ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-1000-blue'
+                    }`}
                   >
+                    <option value="">Select a category</option>
+                    <option value="IMMIGRATION">Immigration</option>
+                    <option value="FAMILY_LAW">Family Law</option>
+                    <option value="CRIMINAL_DEFENSE">Criminal Defense</option>
+                    <option value="CIVIL_LITIGATION">Civil Litigation</option>
                     <option value="CORPORATE_LAW">Corporate Law</option>
                     <option value="PROPERTY_LAW">Property Law</option>
-                    <option value="FAMILY_LAW">Family Law</option>
-                    <option value="LITIGATION">Litigation</option>
-                    <option value="MEDIATION">Mediation Services</option>
                     <option value="EMPLOYMENT_LAW">Employment Law</option>
-                    <option value="INTELLECTUAL_PROPERTY">Intellectual Property</option>
-                    <option value="CONSULTANCY">Legal Consultancy</option>
                     <option value="OTHER">Other</option>
                   </select>
+                  {formErrors.category && (
+                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {formErrors.category}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Case Title *</label>
@@ -200,23 +529,53 @@ export default function SubmitCase() {
                     name="title"
                     value={formData.title}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-1000-blue transition-colors"
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
+                      formErrors.title ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-1000-blue'
+                    }`}
                     placeholder="Brief title for your case"
                     required
                   />
+                  {formErrors.title && (
+                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {formErrors.title}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Case Description *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Case Description *
+                    <span className="ml-2 text-xs text-gray-500 font-normal">
+                      (Include key dates, parties involved, and desired outcome)
+                    </span>
+                  </label>
                   <textarea
                     name="description"
                     value={formData.description}
                     onChange={handleInputChange}
-                    rows={6}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-1000-blue transition-colors resize-none"
-                    placeholder="Please provide a detailed description of your case..."
+                    rows={8}
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors resize-none ${
+                      formErrors.description ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-1000-blue'
+                    }`}
+                    placeholder="Example: I need assistance with... The situation involves... I would like to achieve..."
                     required
                   ></textarea>
-                  <p className="text-sm text-gray-500 mt-2">Minimum 50 characters</p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-sm text-gray-500">
+                      Minimum 50 characters
+                      <span className="ml-2 text-xs">• Be specific for better assistance</span>
+                    </p>
+                    <p className={`text-sm font-medium ${formData.description.length < 50 ? 'text-gray-400' : formData.description.length < 100 ? 'text-yellow-600' : 'text-1000-green'}`}>
+                      {formData.description.length} chars
+                      {formData.description.length >= 100 && ' ✓'}
+                    </p>
+                  </div>
+                  {formErrors.description && (
+                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {formErrors.description}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Urgency Level *</label>
@@ -227,6 +586,8 @@ export default function SubmitCase() {
                         className={`flex items-center justify-center px-4 py-3 border-2 rounded-lg cursor-pointer transition-all ${
                           formData.urgency === level
                             ? 'border-1000-blue bg-1000-blue/10 text-1000-blue'
+                            : formErrors.urgency
+                            ? 'border-red-200 hover:border-red-300'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -242,6 +603,12 @@ export default function SubmitCase() {
                       </label>
                     ))}
                   </div>
+                  {formErrors.urgency && (
+                    <p className="text-red-600 text-sm mt-2 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {formErrors.urgency}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -300,8 +667,10 @@ export default function SubmitCase() {
               </p>
               <div className="bg-gradient-to-r from-gray-50 to-blue-50 border-2 border-1000-blue/20 rounded-xl p-6 mb-8 max-w-md mx-auto">
                 <p className="text-sm text-gray-600 mb-2"><strong>Case Reference:</strong></p>
-                <p className="text-2xl font-bold text-1000-blue mb-4">1000HILLS-2025-{Math.floor(Math.random() * 1000)}</p>
-                <p className="text-sm text-gray-600"><strong>Submitted:</strong> {new Date().toLocaleString()}</p>
+                <p className="text-2xl font-bold text-1000-blue mb-4">
+                  {submittedCaseId ? `CASE-${submittedCaseId}` : 'Processing...'}
+                </p>
+                <p className="text-sm text-gray-600"><strong>Submitted:</strong> {submissionTimestamp || 'Just now'}</p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-2xl mx-auto mb-8">
                 <p className="text-gray-700 leading-relaxed">
@@ -337,37 +706,58 @@ export default function SubmitCase() {
           {/* Navigation Buttons */}
           {step < 4 && (
             <div className="flex justify-between mt-10 pt-8 border-t-2 border-gray-100">
-              <Button
-                type="button"
-                onClick={handlePrev}
-                variant="outline"
-                disabled={step === 1}
-                size="lg"
-                className="disabled:opacity-50"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Previous
-              </Button>
-              {step < 3 ? (
+              <div className="flex items-center gap-4">
                 <Button
                   type="button"
-                  onClick={handleNext}
+                  onClick={handlePrev}
+                  variant="outline"
+                  disabled={step === 1}
                   size="lg"
-                  className="bg-1000-blue hover:bg-1000-blue/90"
+                  className="disabled:opacity-50"
                 >
-                  Next Step
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Previous
                 </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="bg-1000-green hover:bg-1000-green/90"
-                >
-                  Submit Case
-                  <CheckCircle className="w-4 h-4 ml-2" />
-                </Button>
-              )}
+                {step > 1 && (
+                  <span className="text-xs text-gray-500">Alt+P</span>
+                )}
+              </div>
+              <div className="flex items-center gap-4">
+                {step < 3 && (
+                  <span className="text-xs text-gray-500">Alt+N</span>
+                )}
+                {step < 3 ? (
+                  <Button
+                    type="button"
+                    onClick={handleNext}
+                    size="lg"
+                    className="bg-1000-blue hover:bg-1000-blue/90"
+                    disabled={loading}
+                  >
+                    Next Step
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="bg-1000-green hover:bg-1000-green/90"
+                    disabled={loading || authLoading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        Submit Case
+                        <CheckCircle className="w-4 h-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </form>

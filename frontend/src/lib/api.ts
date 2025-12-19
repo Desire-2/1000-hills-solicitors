@@ -63,6 +63,7 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...(options.headers as Record<string, string>),
     };
 
@@ -75,21 +76,37 @@ class ApiService {
     }
 
     try {
+      console.log(`[API] Making ${options.method || 'GET'} request to:`, `${this.baseUrl}${endpoint}`);
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         ...options,
+        mode: 'cors',
+        credentials: 'include',
         headers,
       });
 
-      const data = await response.json();
+      // Handle non-JSON responses
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error('[API] Non-JSON response:', text);
+        data = { msg: text || 'Invalid response format' };
+      }
 
       if (!response.ok) {
+        console.error('[API] Request failed:', response.status, data);
         return {
-          error: data.msg || data.message || 'An error occurred',
+          error: data.msg || data.message || `Request failed with status ${response.status}`,
         };
       }
 
+      console.log('[API] Request successful:', endpoint);
       return { data };
     } catch (error) {
+      console.error('[API] Request error:', error);
       return {
         error: error instanceof Error ? error.message : 'Network error',
       };
@@ -185,12 +202,64 @@ class ApiService {
     return this.put(`/cases/admin/${caseId}`, updates);
   }
 
-  async getAdminCases() {
-    return this.get('/cases/admin');
+  async deleteCase(caseId: number) {
+    return this.delete(`/cases/admin/${caseId}`);
+  }
+
+  async getAdminCases(status?: string) {
+    const endpoint = status ? `/cases/admin?status=${status}` : '/cases/admin';
+    return this.get(endpoint);
   }
 
   async getAdminCase(caseId: number) {
     return this.get(`/cases/admin/${caseId}`);
+  }
+
+  async getCaseStatistics() {
+    return this.get('/cases/statistics');
+  }
+
+  async filterCases(filters: {
+    status?: string;
+    category?: string;
+    priority?: string;
+    assigned_to_id?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.category) params.append('category', filters.category);
+    if (filters.priority) params.append('priority', filters.priority);
+    if (filters.assigned_to_id) params.append('assigned_to_id', filters.assigned_to_id.toString());
+    
+    return this.get(`/cases/admin/filter?${params.toString()}`);
+  }
+
+  async getAssignedCases(userId: number) {
+    return this.get(`/cases/admin/assigned/${userId}`);
+  }
+
+  // --- Case Notes Endpoints ---
+
+  async getCaseNotes(caseId: number) {
+    return this.get(`/cases/${caseId}/notes/`);
+  }
+
+  async createCaseNote(caseId: number, noteData: {
+    content: string;
+    is_private?: boolean;
+  }) {
+    return this.post(`/cases/${caseId}/notes/`, noteData);
+  }
+
+  async updateCaseNote(caseId: number, noteId: number, noteData: {
+    content?: string;
+    is_private?: boolean;
+  }) {
+    return this.put(`/cases/${caseId}/notes/${noteId}`, noteData);
+  }
+
+  async deleteCaseNote(caseId: number, noteId: number) {
+    return this.delete(`/cases/${caseId}/notes/${noteId}`);
   }
 
   async getServices() {
@@ -209,6 +278,22 @@ class ApiService {
 
   async getUsers() {
     return this.get('/users');
+  }
+
+  // --- Health Check ---
+
+  async healthCheck() {
+    return this.get('/health');
+  }
+
+  // --- Debug Method ---
+  
+  getRequestInfo() {
+    return {
+      baseUrl: this.baseUrl,
+      hasToken: !!this.token,
+      tokenPreview: this.token ? this.token.substring(0, 20) + '...' : 'No token',
+    };
   }
 }
 

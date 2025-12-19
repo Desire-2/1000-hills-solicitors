@@ -1,7 +1,7 @@
 """
 Application factory and initialization.
 """
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from extensions import db, migrate, jwt, bcrypt, socketio
 from config import get_config
@@ -48,12 +48,18 @@ def create_app(config_name=None):
     if frontend_url and frontend_url not in allowed_origins:
         allowed_origins.append(frontend_url)
     
+    print("="*60)
+    print(f"CORS Allowed Origins: {allowed_origins}")
+    print("="*60)
+    
     CORS(app, resources={
         r"/*": {
             "origins": allowed_origins,
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+            "allow_headers": ["Content-Type", "Authorization", "Accept"],
+            "expose_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True,
+            "max_age": 3600
         }
     })
     
@@ -91,11 +97,24 @@ def create_app(config_name=None):
         }), 401
     
     # Register blueprints
-    from routes import auth_bp, case_bp
+    from routes import auth_bp, case_bp, notes_bp, messages_bp
     from routes.admin import admin_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(case_bp)
+    app.register_blueprint(notes_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(messages_bp)
+    
+    # CORS preflight handler
+    @app.after_request
+    def after_request(response):
+        origin = request.headers.get('Origin')
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        return response
     
     # Import models (needed for migrations)
     from models import (
@@ -118,7 +137,10 @@ def create_app(config_name=None):
     @app.route('/health')
     def health_check():
         """Health check endpoint."""
-        return jsonify({"status": "healthy"}), 200
+        return jsonify({
+            "status": "healthy",
+            "message": "Backend is running"
+        }), 200
     
     @app.route('/users', methods=['GET'])
     def get_users():

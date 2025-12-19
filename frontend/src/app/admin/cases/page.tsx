@@ -1,41 +1,66 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search, Filter, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import apiService from '@/lib/api';
+
+interface Case {
+  id: number;
+  case_id: string;
+  title: string;
+  status: string;
+  priority: string;
+  client: {
+    name: string;
+  };
+}
 
 export default function AdminCasesManagement() {
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const [searchTerm, setSearchTerm] = useState('');
+  const [cases, setCases] = useState<Case[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Mock data
-  const casesByStatus = {
-    NEW: [
-      { id: 1, caseId: '1000HILLS-2025-002', title: 'Property Claim', client: 'Jane Smith', priority: 'MEDIUM' },
-      { id: 2, caseId: '1000HILLS-2025-004', title: 'Inheritance Matter', client: 'Mary Johnson', priority: 'LOW' },
-    ],
-    IN_PROGRESS: [
-      { id: 3, caseId: '1000HILLS-2025-001', title: 'Contract Dispute', client: 'John Doe', priority: 'HIGH' },
-      { id: 4, caseId: '1000HILLS-2025-005', title: 'Business Registration', client: 'Tech Corp', priority: 'MEDIUM' },
-    ],
-    REVIEW: [
-      { id: 5, caseId: '1000HILLS-2025-006', title: 'Compliance Review', client: 'Finance Ltd', priority: 'HIGH' },
-    ],
-    RESOLVED: [
-      { id: 6, caseId: '1000HILLS-2025-003', title: 'Employment Matter', client: 'Bob Johnson', priority: 'LOW' },
-      { id: 7, caseId: '1000HILLS-2025-007', title: 'Dispute Settlement', client: 'Local Business', priority: 'MEDIUM' },
-    ],
+  useEffect(() => {
+    fetchCases();
+  }, []);
+
+  const fetchCases = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getAdminCases();
+      
+      if (response.error) {
+        setError(response.error);
+      } else if (response.data && Array.isArray(response.data)) {
+        setCases(response.data as Case[]);
+      }
+    } catch (err) {
+      setError('Failed to load cases');
+      console.error('Error fetching cases:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const CaseCard = ({ caseItem }: any) => (
+  const casesByStatus = {
+    NEW: cases.filter(c => c.status === 'NEW'),
+    IN_PROGRESS: cases.filter(c => c.status === 'IN_PROGRESS'),
+    IN_REVIEW: cases.filter(c => c.status === 'IN_REVIEW'),
+    RESOLVED: cases.filter(c => c.status === 'RESOLVED'),
+  };
+
+  const CaseCard = ({ caseItem }: { caseItem: Case }) => (
     <div className="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer">
-      <p className="text-xs font-mono text-1000-blue mb-2">{caseItem.caseId}</p>
+      <p className="text-xs font-mono text-1000-blue mb-2">{caseItem.case_id}</p>
       <h3 className="font-semibold text-sm mb-2">{caseItem.title}</h3>
-      <p className="text-xs text-gray-600 mb-3">{caseItem.client}</p>
+      <p className="text-xs text-gray-600 mb-3">{caseItem.client?.name || 'Client not assigned'}</p>
       <div className="flex justify-between items-center">
         <span className={`text-xs px-2 py-1 rounded font-semibold ${
-          caseItem.priority === 'HIGH' ? 'bg-red-100 text-red-800' :
+          caseItem.priority === 'URGENT' || caseItem.priority === 'HIGH' ? 'bg-red-100 text-red-800' :
           caseItem.priority === 'MEDIUM' ? 'bg-orange-100 text-orange-800' :
           'bg-green-100 text-green-800'
         }`}>
@@ -47,6 +72,33 @@ export default function AdminCasesManagement() {
       </div>
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-1000-blue mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading cases...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-700 mb-4">{error}</p>
+          <Button onClick={fetchCases} className="bg-1000-blue hover:bg-1000-blue/90">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">

@@ -15,9 +15,17 @@ def case_to_dict(case):
         "status": case.status.value,
         "priority": case.priority.value,
         "client_id": case.client_id,
-        "client_name": case.client.name,
+        "client": {
+            "id": case.client.id,
+            "name": case.client.name,
+            "email": case.client.email,
+        } if case.client else None,
         "assigned_to_id": case.assigned_to_id,
-        "assigned_to_name": case.assigned_to.name if case.assigned_to else None,
+        "assigned_to": {
+            "id": case.assigned_to.id,
+            "name": case.assigned_to.name,
+            "email": case.assigned_to.email,
+        } if case.assigned_to else None,
         "created_at": case.created_at.isoformat(),
         "updated_at": case.updated_at.isoformat(),
     }
