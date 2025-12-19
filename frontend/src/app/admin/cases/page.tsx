@@ -161,6 +161,7 @@ export default function AdminCasesManagement() {
             </div>
           </div>
         )}
+      </div>
     </div>
   );
 }
