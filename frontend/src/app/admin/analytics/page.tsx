@@ -1,9 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Role } from '@/lib/types';
 import { 
   TrendingUp, 
   Users, 
@@ -77,7 +74,7 @@ function AnalyticsContent() {
   ];
 
   return (
-    <AdminLayout>
+    <>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -281,14 +278,8 @@ function AnalyticsContent() {
           </table>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }
 
-export default function Analytics() {
-  return (
-    <ProtectedRoute requiredRole={[Role.SUPER_ADMIN]}>
-      <AnalyticsContent />
-    </ProtectedRoute>
-  );
-}
+export default AnalyticsContent;

@@ -1,9 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Role } from '@/lib/types';
 import { 
   Activity, 
   Filter, 
@@ -71,7 +68,7 @@ function ActivityLogContent() {
   });
 
   return (
-    <AdminLayout>
+    <>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -231,14 +228,8 @@ function ActivityLogContent() {
           </div>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }
 
-export default function ActivityLog() {
-  return (
-    <ProtectedRoute requiredRole={[Role.SUPER_ADMIN]}>
-      <ActivityLogContent />
-    </ProtectedRoute>
-  );
-}
+export default ActivityLogContent;

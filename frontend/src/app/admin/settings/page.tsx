@@ -1,9 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Role } from '@/lib/types';
 import { 
   Settings as SettingsIcon, 
   Save, 
@@ -42,7 +39,7 @@ function SettingsContent() {
   };
 
   return (
-    <AdminLayout>
+    <>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -416,14 +413,8 @@ function SettingsContent() {
           </div>
         )}
       </div>
-    </AdminLayout>
+    </>
   );
 }
 
-export default function Settings() {
-  return (
-    <ProtectedRoute requiredRole={[Role.SUPER_ADMIN]}>
-      <SettingsContent />
-    </ProtectedRoute>
-  );
-}
+export default SettingsContent;

@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Role } from '@/lib/types';
+
 import { 
   Users, 
   Search, 
@@ -75,7 +73,7 @@ function UserManagementContent() {
   ];
 
   return (
-    <AdminLayout>
+    <>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -245,14 +243,8 @@ function UserManagementContent() {
           </div>
         </div>
       )}
-    </AdminLayout>
+    </>
   );
 }
 
-export default function UserManagement() {
-  return (
-    <ProtectedRoute requiredRole={[Role.SUPER_ADMIN]}>
-      <UserManagementContent />
-    </ProtectedRoute>
-  );
-}
+export default UserManagementContent;

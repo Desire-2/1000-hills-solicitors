@@ -1,9 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { Role } from '@/lib/types';
 import {
   Users,
   Briefcase,
@@ -109,7 +106,7 @@ function SuperAdminDashboardContent() {
   );
 
   return (
-    <AdminLayout>
+    <>
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Super Admin Dashboard</h1>
@@ -329,14 +326,8 @@ function SuperAdminDashboardContent() {
           </div>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 }
 
-export default function SuperAdminDashboard() {
-  return (
-    <ProtectedRoute requiredRole={[Role.SUPER_ADMIN]}>
-      <SuperAdminDashboardContent />
-    </ProtectedRoute>
-  );
-}
+export default SuperAdminDashboardContent;
