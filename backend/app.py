@@ -37,9 +37,20 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     
     # Configure CORS with proper settings
+    allowed_origins = app.config.get('CORS_ORIGINS', [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ])
+    
+    # Add FRONTEND_URL from environment if set
+    import os
+    frontend_url = os.getenv('FRONTEND_URL')
+    if frontend_url and frontend_url not in allowed_origins:
+        allowed_origins.append(frontend_url)
+    
     CORS(app, resources={
         r"/*": {
-            "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+            "origins": allowed_origins,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "supports_credentials": True
@@ -134,9 +145,13 @@ app = create_app()
 
 
 if __name__ == '__main__':
+    import os
     # Create database tables if they don't exist
     with app.app_context():
         db.create_all()
     
+    # Use PORT from environment for Render deployment
+    port = int(os.environ.get('PORT', 5001))
+    
     # Run with SocketIO
-    socketio.run(app, debug=True, port=5001)
+    socketio.run(app, host='0.0.0.0', debug=False, port=port)

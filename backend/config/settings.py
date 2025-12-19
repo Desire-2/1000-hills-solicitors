@@ -12,7 +12,14 @@ load_dotenv()
 class Config:
     """Base configuration."""
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_very_secret_key_for_dev')
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
+    
+    # Database URL handling for both SQLite (dev) and PostgreSQL (production)
+    database_url = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
+    # Fix for Render PostgreSQL (postgres:// -> postgresql://)
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    SQLALCHEMY_DATABASE_URI = database_url
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or os.environ.get('SECRET_KEY', 'a_very_secret_key_for_dev')
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
@@ -23,6 +30,12 @@ class Config:
     JWT_HEADER_TYPE = 'Bearer'
     JWT_CSRF_METHODS = []  # Disable CSRF protection for API
     JWT_ERROR_MESSAGE_KEY = 'msg'
+    
+    # CORS Configuration
+    CORS_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
+    ]
 
 
 class DevelopmentConfig(Config):
