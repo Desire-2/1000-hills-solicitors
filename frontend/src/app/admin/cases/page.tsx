@@ -49,22 +49,20 @@ export default function AdminCasesManagement() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Case Management</h1>
-          <Button asChild className="bg-1000-blue hover:bg-1000-blue/90">
-            <Link href="/admin/cases/new">
-              <Plus className="w-4 h-4 mr-2" />
-              New Case
-            </Link>
-          </Button>
-        </div>
+    <div className="p-6">
+      {/* Page Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Case Management</h1>
+        <Button asChild className="bg-1000-blue hover:bg-1000-blue/90">
+          <Link href="/admin/cases/new">
+            <Plus className="w-4 h-4 mr-2" />
+            New Case
+          </Link>
+        </Button>
       </div>
 
       {/* Controls */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div>
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex gap-4 items-center">
             <div className="relative flex-1">
@@ -163,7 +161,6 @@ export default function AdminCasesManagement() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }
