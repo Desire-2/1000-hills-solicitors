@@ -32,6 +32,14 @@ def create_app(config_name=None):
     print(f"JWT_CSRF_METHODS: {app.config.get('JWT_CSRF_METHODS')}")
     print("="*60)
     
+    # Ensure instance folder exists and is writable (used for sqlite file)
+    import os
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+    except Exception:
+        # If instance_path cannot be created, log and continue; DB init may fail later
+        print(f"Warning: could not create instance path: {app.instance_path}")
+
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)

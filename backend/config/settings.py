@@ -14,9 +14,10 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_very_secret_key_for_dev')
     
     # Database URL handling for both SQLite (dev) and PostgreSQL (production)
-    # Use the `instance` directory for the default SQLite file so containers
-    # that create the `instance/` folder (Dockerfile does this) can write to it.
-    database_url = os.environ.get('DATABASE_URL', 'sqlite:///instance/app.db')
+    # Use an absolute path to the `instance` directory for the default SQLite file
+    # so containers can reliably open/create the DB file.
+    default_sqlite_path = os.path.abspath(os.path.join(os.getcwd(), 'instance', 'app.db'))
+    database_url = os.environ.get('DATABASE_URL', f"sqlite:///{default_sqlite_path}")
     # Fix for Render PostgreSQL (postgres:// -> postgresql://)
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
