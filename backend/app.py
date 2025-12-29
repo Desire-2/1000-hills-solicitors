@@ -32,6 +32,12 @@ def create_app(config_name=None):
     print(f"JWT_CSRF_METHODS: {app.config.get('JWT_CSRF_METHODS')}")
     print("="*60)
     
+    # Debug: Print DATABASE_URL
+    print("="*60)
+    print("Database Configuration:")
+    print(f"DATABASE_URL: {app.config.get('SQLALCHEMY_DATABASE_URI', 'NOT SET')}")
+    print("="*60)
+    
     # Ensure instance folder exists and is writable (used for sqlite file)
     import os
     try:
