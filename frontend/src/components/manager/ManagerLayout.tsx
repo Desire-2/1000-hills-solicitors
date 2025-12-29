@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import {
   LayoutDashboard,
   Briefcase,
@@ -20,7 +21,8 @@ import {
   ChevronDown,
   Settings,
   LogOut,
-  User
+  User,
+  CalendarCheck
 } from 'lucide-react';
 
 interface ManagerLayoutProps {
@@ -33,13 +35,15 @@ export default function ManagerLayout({ children }: ManagerLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { unreadCount } = useMessageNotifications();
 
   const navigation = [
     { name: 'Dashboard', href: '/manager/dashboard', icon: LayoutDashboard },
     { name: 'Cases', href: '/manager/cases', icon: Briefcase },
     { name: 'Clients', href: '/manager/clients', icon: Users },
+    { name: 'Appointments', href: '/manager/appointments', icon: CalendarCheck },
     { name: 'Tasks & Deadlines', href: '/manager/tasks', icon: CheckSquare },
-    { name: 'Messages', href: '/manager/messages', icon: MessageSquare },
+    { name: 'Messages', href: '/manager/messages', icon: MessageSquare, badge: unreadCount },
     { name: 'Documents', href: '/manager/documents', icon: FileText },
     { name: 'Reports', href: '/manager/reports', icon: BarChart3 },
     { name: 'Calendar', href: '/manager/calendar', icon: Calendar },

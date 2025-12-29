@@ -22,10 +22,12 @@ import {
   Database,
   Activity,
   Briefcase,
-  Tag
+  Tag,
+  CalendarCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
+import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { useRouter } from 'next/navigation';
 
 interface AdminLayoutProps {
@@ -37,6 +39,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { unreadCount } = useMessageNotifications();
   const router = useRouter();
 
   const navigationItems = [
@@ -53,8 +56,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       items: [
         { name: 'Users', href: '/admin/users', icon: Users },
         { name: 'Cases', href: '/admin/cases', icon: Briefcase },
+        { name: 'Appointments', href: '/admin/appointments', icon: CalendarCheck },
         { name: 'Content', href: '/admin/content', icon: FileText },
-        { name: 'Messages', href: '/admin/messages', icon: MessageSquare },
+        { name: 'Messages', href: '/admin/messages', icon: MessageSquare, badge: unreadCount },
       ]
     },
     {

@@ -97,13 +97,14 @@ def create_app(config_name=None):
         }), 401
     
     # Register blueprints
-    from routes import auth_bp, case_bp, notes_bp, messages_bp
+    from routes import auth_bp, case_bp, notes_bp, messages_bp, appointments_bp
     from routes.admin import admin_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(case_bp)
     app.register_blueprint(notes_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(messages_bp)
+    app.register_blueprint(appointments_bp)
     
     # CORS preflight handler
     @app.after_request

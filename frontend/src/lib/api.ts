@@ -3,7 +3,7 @@
  * Handles all HTTP requests to the backend API
  */
 
-import { User } from './types';
+import { User, Appointment, AppointmentStats } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
@@ -278,6 +278,191 @@ class ApiService {
 
   async getUsers() {
     return this.get('/users');
+  }
+
+  async getCaseManagers() {
+    return this.get('/admin/case-managers');
+  }
+
+  // --- Message Endpoints ---
+
+  async getCaseMessages(caseId: number) {
+    return this.get(`/cases/${caseId}/messages`);
+  }
+
+  async sendMessage(caseId: number, messageData: {
+    recipient_id: number;
+    content: string;
+  }) {
+    return this.post(`/cases/${caseId}/messages`, messageData);
+  }
+
+  async markMessageRead(messageId: number) {
+    return this.put(`/messages/${messageId}/read`, {});
+  }
+
+  async getMessages() {
+    return this.get('/messages/');
+  }
+
+  async getAllMessages(params?: {
+    case_id?: number;
+    unread_only?: boolean;
+    limit?: number;
+    offset?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.case_id) query.append('case_id', params.case_id.toString());
+    if (params?.unread_only) query.append('unread_only', 'true');
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.offset) query.append('offset', params.offset.toString());
+    
+    const endpoint = query.toString() ? `/messages/all?${query.toString()}` : '/messages/all';
+    return this.get(endpoint);
+  }
+
+  async getUnreadCount() {
+    return this.get('/messages/unread-count');
+  }
+
+  async getConversations() {
+    return this.get('/messages/conversations');
+  }
+
+  // --- Document Endpoints ---
+
+  async uploadDocument(formData: FormData) {
+    // Override headers for file upload
+    const headers: Record<string, string> = {};
+    
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/documents/upload`, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          error: data.msg || data.message || 'Upload failed',
+        };
+      }
+
+      return { data };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Network error',
+      };
+    }
+  }
+
+  async getDocuments(caseId?: number) {
+    const endpoint = caseId ? `/documents/?case_id=${caseId}` : '/documents/';
+    return this.get(endpoint);
+  }
+
+  async deleteDocument(documentId: number) {
+    return this.delete(`/documents/${documentId}`);
+  }
+
+  async downloadDocument(documentId: number) {
+    try {
+      const response = await fetch(`${this.baseUrl}/documents/${documentId}/download`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      return response.blob();
+    } catch (error) {
+      console.error('Download error:', error);
+      throw error;
+    }
+  }
+
+  // --- Appointment Endpoints ---
+
+  async getAppointments(params?: {
+    status?: string;
+    start_date?: string;
+    end_date?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.start_date) query.append('start_date', params.start_date);
+    if (params?.end_date) query.append('end_date', params.end_date);
+    
+    const endpoint = query.toString() ? `/api/appointments?${query.toString()}` : '/api/appointments';
+    // Explicitly type the response so callers can access `data.appointments`
+    return this.get<{ appointments: Appointment[] }>(endpoint);
+  }
+
+  async getAppointment(appointmentId: number) {
+    return this.get(`/api/appointments/${appointmentId}`);
+  }
+
+  async createAppointment(appointmentData: {
+    title: string;
+    description?: string;
+    start_datetime: string;
+    end_datetime: string;
+    appointment_type: 'video' | 'in_person' | 'phone';
+    location?: string;
+    attorney_id: number;
+    client_id?: number;
+    case_id?: number;
+    notes?: string;
+    client_phone?: string;
+  }) {
+    return this.post('/api/appointments', appointmentData);
+  }
+
+  async updateAppointment(appointmentId: number, updates: {
+    title?: string;
+    description?: string;
+    start_datetime?: string;
+    end_datetime?: string;
+    appointment_type?: 'video' | 'in_person' | 'phone';
+    location?: string;
+    status?: string;
+    attorney_id?: number;
+    notes?: string;
+    client_phone?: string;
+  }) {
+    return this.put(`/api/appointments/${appointmentId}`, updates);
+  }
+
+  async deleteAppointment(appointmentId: number) {
+    return this.delete(`/api/appointments/${appointmentId}`);
+  }
+
+  async cancelAppointment(appointmentId: number) {
+    return this.post(`/api/appointments/${appointmentId}/cancel`, {});
+  }
+
+  async getAppointmentStats() {
+    return this.get<AppointmentStats>('/api/appointments/stats');
+  }
+
+  async getAvailableAttorneys() {
+    return this.get<{ attorneys: User[] }>('/api/appointments/attorneys');
+  }
+
+  async regenerateMeetingLink(appointmentId: number) {
+    return this.post(`/api/appointments/${appointmentId}/regenerate-link`, {});
   }
 
   // --- Health Check ---

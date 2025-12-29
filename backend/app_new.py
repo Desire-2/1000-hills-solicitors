@@ -32,14 +32,15 @@ def create_app(config_name=None):
     socketio.init_app(app, cors_allowed_origins="*")
     
     # Register blueprints
-    from routes import auth_bp, case_bp
+    from routes import auth_bp, case_bp, appointments_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(case_bp)
+    app.register_blueprint(appointments_bp)
     
     # Import models (needed for migrations)
     from models import (
         User, Case, Message, Document, CaseNote, 
-        Deadline, Service, TeamMember, BlogPost
+        Deadline, Service, TeamMember, BlogPost, Appointment
     )
     
     # Import websocket handlers

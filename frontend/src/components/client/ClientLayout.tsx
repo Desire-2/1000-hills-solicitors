@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
+import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { useRouter } from 'next/navigation';
 
 interface ClientLayoutProps {
@@ -33,12 +34,13 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { unreadCount } = useMessageNotifications();
   const router = useRouter();
 
   const navigationItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'My Cases', href: '/dashboard/cases', icon: FileText },
-    { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare, badge: 2 },
+    { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare, badge: unreadCount },
     { name: 'Appointments', href: '/dashboard/appointments', icon: Calendar },
     { name: 'Documents', href: '/dashboard/documents', icon: FileText },
     { name: 'Help & Support', href: '/dashboard/help', icon: HelpCircle },

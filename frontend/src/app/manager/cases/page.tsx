@@ -78,12 +78,12 @@ function ManagerCasesContent() {
 
   const fetchUsers = async () => {
     try {
-      const response = await apiService.get('/admin/users?role=CASE_MANAGER');
+      const response = await apiService.getCaseManagers();
       if (response.data && Array.isArray(response.data)) {
         setUsers(response.data as User[]);
       }
     } catch (err) {
-      console.error('Error fetching users:', err);
+      console.error('Error fetching case managers:', err);
     }
   };
 

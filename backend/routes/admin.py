@@ -11,6 +11,14 @@ from werkzeug.security import generate_password_hash
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
+@admin_bp.route('/case-managers', methods=['GET'])
+@role_required(Role.SUPER_ADMIN, Role.CASE_MANAGER)
+def get_case_managers():
+    """Get all case managers (accessible by managers and admins)."""
+    managers = User.query.filter(User.role == Role.CASE_MANAGER).all()
+    return jsonify([user_to_dict(user) for user in managers]), 200
+
+
 @admin_bp.route('/users', methods=['GET'])
 @role_required(Role.SUPER_ADMIN)
 def get_all_users():

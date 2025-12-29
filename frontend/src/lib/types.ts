@@ -40,6 +40,7 @@ export interface User {
   id: number;
   email: string;
   name: string;
+  phone?: string;
   role: Role;
   email_verified: boolean;
   created_at: string;
@@ -89,4 +90,50 @@ export interface Notification {
   read: boolean;
   link?: string;
   created_at: string;
+}
+
+export enum AppointmentType {
+  VIDEO = 'video',
+  IN_PERSON = 'in_person',
+  PHONE = 'phone',
+}
+
+export enum AppointmentStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  RESCHEDULED = 'rescheduled',
+}
+
+export interface Appointment {
+  id: number;
+  title: string;
+  description?: string;
+  start_datetime: string;
+  end_datetime: string;
+  duration: number;
+  appointment_type: AppointmentType;
+  location?: string;
+  meeting_link?: string;
+  status: AppointmentStatus;
+  client_id: number;
+  client_name?: string;
+  client_phone?: string;
+  attorney_id: number;
+  attorney_name?: string;
+  attorney_phone?: string;
+  case_id?: number;
+  case_reference?: string;
+  reminder_sent?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppointmentStats {
+  upcoming: number;
+  this_month: number;
+  completed: number;
+  pending: number;
 }

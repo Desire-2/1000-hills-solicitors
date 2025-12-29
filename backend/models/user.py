@@ -31,5 +31,17 @@ class User(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
+    def to_dict(self):
+        """Convert user to dictionary."""
+        return {
+            'id': self.id,
+            'email': self.email,
+            'name': self.name,
+            'phone': self.phone,
+            'role': self.role.value if self.role else None,
+            'email_verified': self.email_verified,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+    
     def __repr__(self):
         return f'<User {self.email}>'

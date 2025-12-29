@@ -11,6 +11,7 @@ from .document import Document
 from .case_note import CaseNote
 from .deadline import Deadline
 from .cms import Service, TeamMember, BlogPost
+from .appointment import Appointment, AppointmentType, AppointmentStatus
 
 __all__ = [
     'Base',
@@ -27,4 +28,7 @@ __all__ = [
     'Service',
     'TeamMember',
     'BlogPost',
+    'Appointment',
+    'AppointmentType',
+    'AppointmentStatus',
 ]
