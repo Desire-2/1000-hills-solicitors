@@ -3,6 +3,8 @@ Database initialization script.
 Creates initial data including Super Admin user and test client.
 """
 from extensions import db, bcrypt
+import os
+from flask_migrate import upgrade as migrate_upgrade
 from models import (
     User, Role, Case, Message, Document, CaseNote,
     Deadline, Service, TeamMember, BlogPost
@@ -19,9 +21,19 @@ def setup_initial_data(app):
     with app.app_context():
         print("Starting database setup...")
         
-        # 1. Create all tables
-        db.create_all()
-        print("Database tables created.")
+        # 1. Create all tables for sqlite or run migrations for other databases
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if db_uri.startswith('sqlite'):
+            db.create_all()
+            print("Database tables created using create_all (sqlite).")
+        else:
+            # For production Postgres, run migrations (recommended)
+            try:
+                print("Running migrations (flask-migrate upgrade) for production DB...")
+                migrate_upgrade()
+                print("Migrations applied successfully.")
+            except Exception as e:
+                print(f"Failed to run migrations: {e}")
 
         # 2. Create Super Admin if none exists
         admin_email = "admin@1000hills.com"
