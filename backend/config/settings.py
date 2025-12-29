@@ -18,6 +18,15 @@ class Config:
     # so containers can reliably open/create the DB file.
     default_sqlite_path = os.path.abspath(os.path.join(os.getcwd(), 'instance', 'app.db'))
     database_url = os.environ.get('DATABASE_URL', f"sqlite:///{default_sqlite_path}")
+
+    # Validate DATABASE_URL if provided; fail fast on malformed values
+    if os.environ.get('DATABASE_URL'):
+        if '://' not in database_url:
+            raise RuntimeError(
+                "Invalid DATABASE_URL environment variable.\n"
+                "Provide a full DB URL, e.g. 'postgresql://user:password@host:port/dbname'.\n"
+                f"Got: {database_url!r}"
+            )
     # Fix for Render PostgreSQL (postgres:// -> postgresql://)
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
