@@ -44,6 +44,8 @@ class Config:
     JWT_ERROR_MESSAGE_KEY = 'msg'
     
     # CORS Configuration
+    # Reads comma-separated origins from CORS_ORIGINS environment variable
+    # Example: "http://localhost:3000,http://localhost:3001,https://example.com"
     cors_origins_env = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
     CORS_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',')]
 

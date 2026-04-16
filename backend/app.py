@@ -50,20 +50,20 @@ def create_app(config_name=None):
     db.init_app(app)
     migrate.init_app(app, db)
     
-    # Configure CORS with proper settings
+    # Configure CORS with origins from environment
+    import os
     allowed_origins = app.config.get('CORS_ORIGINS', [
         "http://localhost:3000",
         "http://127.0.0.1:3000"
     ])
     
     # Add FRONTEND_URL from environment if set
-    import os
     frontend_url = os.getenv('FRONTEND_URL')
     if frontend_url and frontend_url not in allowed_origins:
         allowed_origins.append(frontend_url)
     
     print("="*60)
-    print(f"CORS Allowed Origins: {allowed_origins}")
+    print(f"CORS Allowed Origins (from config): {allowed_origins}")
     print("="*60)
     
     CORS(app, resources={
