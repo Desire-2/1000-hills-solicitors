@@ -3,7 +3,7 @@ WebSocket event handlers for real-time communication.
 """
 from flask_socketio import emit, join_room, leave_room
 from flask_jwt_extended import decode_token
-from flask import request
+from flask import request, current_app
 from extensions import db, socketio
 from models import Message, Case, User, Role
 from sqlalchemy import select
@@ -12,6 +12,12 @@ from sqlalchemy import select
 def get_user_id_from_token(token):
     """Helper function to get user ID from JWT token."""
     try:
+        if not token:
+            return None
+
+        if isinstance(token, str) and token.startswith('Bearer '):
+            token = token.split(' ', 1)[1].strip()
+
         decoded_token = decode_token(token)
         return decoded_token['sub']
     except Exception:
@@ -21,14 +27,27 @@ def get_user_id_from_token(token):
 @socketio.on('connect')
 def handle_connect(auth):
     """Handles new WebSocket connections and authenticates the user."""
-    if auth and 'token' in auth:
-        user_id = get_user_id_from_token(auth['token'])
-        if user_id:
-            print(f"User {user_id} connected with SID {request.sid}")
-            emit('status', {'msg': 'Connected and authenticated'}, room=request.sid)
-            return
-    
-    print("Unauthenticated connection rejected")
+    token = None
+
+    if auth and isinstance(auth, dict):
+        token = auth.get('token')
+
+    if not token:
+        token = request.args.get('token')
+
+    if not token:
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            token = auth_header
+
+    user_id = get_user_id_from_token(token)
+    if user_id:
+        print(f"User {user_id} connected with SID {request.sid}")
+        emit('status', {'msg': 'Connected and authenticated'}, room=request.sid)
+        return
+
+    if current_app.debug:
+        print(f"[DEBUG] Rejected unauthenticated socket connection SID {request.sid}")
     return False  # Reject connection
 
 

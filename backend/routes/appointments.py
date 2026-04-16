@@ -164,7 +164,7 @@ def get_appointment(appointment_id):
 def create_appointment():
     """Create a new appointment."""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         user = User.query.get(current_user_id)
         data = request.get_json()
         
@@ -229,6 +229,20 @@ def create_appointment():
         # Verify attorney is not a client
         if attorney.role == Role.CLIENT:
             return jsonify({'error': 'Attorney must be a staff member (Manager or Admin)'}), 400
+
+        case_id = data.get('case_id')
+        if case_id is not None:
+            case = Case.query.get(case_id)
+            if not case:
+                return jsonify({'error': 'Invalid case ID'}), 400
+
+            # Clients can only book appointments for their own cases.
+            if user.role == Role.CLIENT and case.client_id != current_user_id:
+                return jsonify({'error': 'Unauthorized case selection'}), 403
+
+            # If a client is provided, ensure the case belongs to that client.
+            if client_id and case.client_id != int(client_id):
+                return jsonify({'error': 'Selected case does not belong to the selected client'}), 400
         
         # Get appointment type
         appointment_type = AppointmentType(data.get('appointment_type', 'video'))
@@ -258,7 +272,7 @@ def create_appointment():
             status=initial_status,
             client_id=client_id,
             attorney_id=attorney_id,
-            case_id=data.get('case_id'),
+            case_id=case_id,
             notes=data.get('notes'),
             created_by_id=current_user_id
         )

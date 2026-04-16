@@ -1,7 +1,7 @@
 """
 Authentication routes.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from services import AuthService
 from utils import user_to_dict, get_current_user
@@ -54,12 +54,9 @@ def login():
 def get_current_user_info():
     """Get current user information."""
     try:
-        from flask import request as flask_request
-        print(f"[DEBUG] Headers: {dict(flask_request.headers)}")
-        print(f"[DEBUG] Auth header: {flask_request.headers.get('Authorization')}")
-        
         user_id = get_jwt_identity()
-        print(f"[DEBUG] JWT Identity: {user_id}")
+        if current_app.debug:
+            print(f"[DEBUG] /auth/me JWT identity: {user_id}")
         
         user = get_current_user()
         

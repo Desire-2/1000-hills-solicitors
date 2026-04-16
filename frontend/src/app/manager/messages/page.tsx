@@ -138,13 +138,8 @@ function ManagerMessagesContent() {
     try {
       setSending(true);
       
-      const selectedConversation = conversations.find(c => c.case_id === selectedCaseId);
-      if (!selectedConversation || !selectedConversation.other_party) {
-        throw new Error('Cannot determine message recipient');
-      }
-      
+      // Let backend determine recipient based on sender's role and case assignment
       const response = await apiService.sendMessage(selectedCaseId, {
-        recipient_id: selectedConversation.other_party.id,
         content: messageText.trim()
       });
       

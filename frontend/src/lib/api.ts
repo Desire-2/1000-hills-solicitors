@@ -12,6 +12,7 @@ interface ApiResponse<T = any> {
   error?: string;
   message?: string;
   msg?: string;
+  status?: number;
 }
 
 class ApiService {
@@ -51,6 +52,10 @@ class ApiService {
    * Get the authentication token
    */
   getToken(): string | null {
+    // Rehydrate from localStorage on-demand so refreshes don't lose auth state.
+    if (typeof window !== 'undefined' && !this.token) {
+      this.token = localStorage.getItem('access_token');
+    }
     return this.token;
   }
 
@@ -68,9 +73,10 @@ class ApiService {
     };
 
     // Add authorization header if token exists
-    if (this.token) {
-      console.log('[API] Adding Authorization header with token:', this.token.substring(0, 20) + '...');
-      headers['Authorization'] = `Bearer ${this.token}`;
+    const activeToken = this.getToken();
+    if (activeToken) {
+      console.log('[API] Adding Authorization header with token:', activeToken.substring(0, 20) + '...');
+      headers['Authorization'] = `Bearer ${activeToken}`;
     } else {
       console.log('[API] No token available for request to:', endpoint);
     }
@@ -99,12 +105,15 @@ class ApiService {
       if (!response.ok) {
         console.error('[API] Request failed:', response.status, data);
         return {
-          error: data.msg || data.message || `Request failed with status ${response.status}`,
+          status: response.status,
+          error: data.error || data.msg || data.message || `Request failed with status ${response.status}`,
         };
       }
 
-      console.log('[API] Request successful:', endpoint);
-      return { data };
+      return {
+        data,
+        status: response.status,
+      };
     } catch (error) {
       console.error('[API] Request error:', error);
       return {
@@ -291,7 +300,7 @@ class ApiService {
   }
 
   async sendMessage(caseId: number, messageData: {
-    recipient_id: number;
+    recipient_id?: number;
     content: string;
   }) {
     return this.post(`/cases/${caseId}/messages`, messageData);

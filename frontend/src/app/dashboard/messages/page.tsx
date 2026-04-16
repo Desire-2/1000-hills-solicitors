@@ -48,74 +48,52 @@ function MessagesContent() {
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState('');
   const [conversations, setConversations] = useState<ConversationGroup[]>([]);
+  const [selectedMessages, setSelectedMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
-  const [availableCases, setAvailableCases] = useState<Case[]>([]);
 
   const fetchMessagesData = useCallback(async () => {
     try {
       setError(null);
       
-      // Fetch user's cases
-      const casesResponse = await apiService.getCases();
+      // Fetch conversations from backend (already includes all messages and case info)
+      const response = await apiService.getConversations();
       
-      if (casesResponse.error) {
-        throw new Error(casesResponse.error);
+      if (response.error) {
+        throw new Error(response.error);
       }
+
+      const conversationData = (response.data as any).conversations as any[];
       
-      const cases = (casesResponse.data as Case[]) || [];
-      setAvailableCases(cases);
-      
-      // Fetch messages for each case
-      const conversationGroups: ConversationGroup[] = [];
-      
-      for (const caseItem of cases) {
-        const messagesResponse = await apiService.getCaseMessages(caseItem.id);
-        
-        if (!messagesResponse.error && messagesResponse.data) {
-          const messages = (messagesResponse.data as any).messages as Message[];
-          const unreadCount = messages.filter(m => !m.read && m.recipient.id === user?.id).length;
-          
-          // Determine the other party in the conversation
-          let otherParty = null;
-          if (messages.length > 0) {
-            const firstMessage = messages[0];
-            const otherPerson = firstMessage.sender.id === user?.id 
-              ? firstMessage.recipient 
-              : firstMessage.sender;
-            
-            otherParty = {
-              id: otherPerson.id,
-              name: otherPerson.name,
-              role: caseItem.assigned_to?.name === otherPerson.name ? 'Case Manager' : 'Staff'
-            };
-          }
-          
-          conversationGroups.push({
-            case_id: caseItem.id,
-            case_title: caseItem.title,
-            case_reference: `CASE-${String(caseItem.id).padStart(4, '0')}`,
-            messages: messages.sort((a, b) => 
-              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            ),
-            unread_count: unreadCount,
-            last_message: messages.length > 0 ? messages[messages.length - 1] : null,
-            other_party: otherParty
-          });
-        }
-      }
-      
+      const conversationGroups: ConversationGroup[] = conversationData.map(conv => ({
+        case_id: conv.case_id,
+        case_title: conv.case_title,
+        case_reference: conv.case_reference,
+        messages: [], // Messages are loaded separately via getCaseMessages when needed
+        unread_count: conv.unread_count,
+        last_message: conv.last_message ? {
+          id: conv.last_message.id,
+          case_id: conv.case_id,
+          content: conv.last_message.content,
+          read: conv.last_message.read,
+          created_at: conv.last_message.created_at,
+          sender: { id: 0, name: '', email: '' },
+          recipient: { id: 0, name: '', email: '' }
+        } : null,
+        other_party: conv.other_party
+      }));
+
       // Sort by last message time
       conversationGroups.sort((a, b) => {
         const aTime = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
         const bTime = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
         return bTime - aTime;
       });
-      
+
       setConversations(conversationGroups);
       
       // Auto-select first conversation if none selected
@@ -131,11 +109,41 @@ function MessagesContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id, selectedCaseId]);
+  }, [selectedCaseId]);
 
   useEffect(() => {
     fetchMessagesData();
   }, [fetchMessagesData]);
+
+  useEffect(() => {
+    if (selectedCaseId) {
+      fetchCaseMessages(selectedCaseId);
+    }
+  }, [selectedCaseId]);
+
+  const fetchCaseMessages = async (caseId: number) => {
+    try {
+      const response = await apiService.getCaseMessages(caseId);
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      const messages = (response.data as any).messages as Message[];
+      setSelectedMessages(messages.sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      ));
+
+      // Mark unread messages as read
+      const unreadMessages = messages.filter(m => !m.read && m.recipient.id === user?.id);
+      for (const msg of unreadMessages) {
+        await apiService.markMessageRead(msg.id);
+      }
+      
+    } catch (err) {
+      console.error('Messages fetch error:', err);
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -147,14 +155,9 @@ function MessagesContent() {
     
     try {
       setSending(true);
-      
-      const selectedConversation = conversations.find(c => c.case_id === selectedCaseId);
-      if (!selectedConversation || !selectedConversation.other_party) {
-        throw new Error('Cannot determine message recipient');
-      }
-      
+
+      // Let backend determine recipient based on sender's role and case assignment
       const response = await apiService.sendMessage(selectedCaseId, {
-        recipient_id: selectedConversation.other_party.id,
         content: messageText.trim()
       });
       
@@ -186,20 +189,11 @@ function MessagesContent() {
 
   const selectedConversation = conversations.find(c => c.case_id === selectedCaseId);
   
-  // If a case is selected but has no conversation yet, create a virtual one
-  const selectedCase = selectedCaseId && !selectedConversation 
-    ? availableCases.find(c => c.id === selectedCaseId)
-    : null;
-  
-  const displayConversation = selectedConversation || (selectedCase ? {
-    case_id: selectedCase.id,
-    case_reference: `CASE-${String(selectedCase.id).padStart(4, '0')}`,
-    case_title: selectedCase.title,
-    messages: [],
-    unread_count: 0,
-    last_message: null,
-    other_party: selectedCase.assigned_to || null
-  } : null);
+  // Display the selected conversation with separately fetched messages
+  const displayConversation = selectedConversation ? {
+    ...selectedConversation,
+    messages: selectedMessages
+  } : null;
 
   const filteredConversations = conversations.filter(c =>
     c.case_title.toLowerCase().includes(searchTerm.toLowerCase()) ||

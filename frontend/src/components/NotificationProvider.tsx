@@ -3,6 +3,8 @@
 import { Toaster, toast } from 'sonner';
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
+import apiService from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 
 // Socket.IO client setup with environment variable
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
@@ -12,19 +14,26 @@ const socket = io(SOCKET_URL, {
 });
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    // Mock authentication token (replace with actual token retrieval)
-    const token = 'MOCK_JWT_TOKEN'; 
+  const { user, loading } = useAuth();
 
-    if (token) {
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    const token = apiService.getToken();
+
+    if (user && token) {
       socket.auth = { token };
-      socket.connect();
+      if (!socket.connected) {
+        socket.connect();
+      }
+    } else if (socket.connected) {
+      socket.disconnect();
     }
 
     socket.on('connect', () => {
       console.log('Connected to WebSocket server');
-      // Mock joining a user-specific room
-      // socket.emit('join_user', { token }); 
     });
 
     socket.on('new_message', (data) => {
@@ -50,7 +59,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     });
 
     return () => {
-      socket.disconnect();
+      socket.off('connect');
+      socket.off('new_message');
+      socket.off('case_update');
+      socket.off('error');
+    };
+  }, [user, loading]);
+
+  useEffect(() => {
+    return () => {
+      if (socket.connected) {
+        socket.disconnect();
+      }
     };
   }, []);
 

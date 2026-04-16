@@ -7,15 +7,13 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import Message, Case, User
 from extensions import db
-from datetime import datetime
-from utils.decorators import role_required
 from models.enums import Role
 
 messages_bp = Blueprint('messages', __name__)
 
 @messages_bp.route('/cases/<int:case_id>/messages', methods=['POST', 'OPTIONS'])
 def send_message(case_id):
-    """Send a message to a client about a case"""
+    """Send a message for a case conversation."""
     # Handle OPTIONS request for CORS preflight
     if request.method == 'OPTIONS':
         return jsonify({}), 200
@@ -24,18 +22,15 @@ def send_message(case_id):
     from flask_jwt_extended import verify_jwt_in_request
     verify_jwt_in_request()
     
-    current_user_id = get_jwt_identity()
-    from models import User
+    current_user_id = int(get_jwt_identity())
     user = User.query.get(current_user_id)
-    
-    if not user or user.role not in [Role.CASE_MANAGER, Role.SUPER_ADMIN]:
-        return jsonify({'error': 'Access denied'}), 403
+
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
     
     try:
-        current_user_id = get_jwt_identity()
-        data = request.get_json()
-        
-        recipient_id = data.get('recipient_id')
+        data = request.get_json() or {}
+        requested_recipient_id = data.get('recipient_id')
         content = data.get('content')
         
         if not content or not content.strip():
@@ -45,15 +40,41 @@ def send_message(case_id):
         case = Case.query.get(case_id)
         if not case:
             return jsonify({'error': 'Case not found'}), 404
+
+        # Ensure sender can participate in this case conversation.
+        has_access = (
+            user.role == Role.SUPER_ADMIN or
+            case.client_id == current_user_id or
+            case.assigned_to_id == current_user_id
+        )
+        if not has_access:
+            return jsonify({'error': 'Access denied for this case'}), 403
+
+        # Route recipient by case role to avoid wrong-target messages.
+        if user.role == Role.CLIENT:
+            if not case.assigned_to_id:
+                return jsonify({'error': 'This case is not assigned to a case manager yet'}), 400
+            recipient_id = case.assigned_to_id
+            expected_error = 'Client messages must be sent to the assigned case manager'
+        else:
+            recipient_id = case.client_id
+            expected_error = 'Staff messages must be sent to the case client'
+
+        if requested_recipient_id is not None:
+            try:
+                if int(requested_recipient_id) != int(recipient_id):
+                    return jsonify({'error': expected_error}), 400
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid recipient ID'}), 400
         
         # Verify recipient exists
         recipient = User.query.get(recipient_id)
         if not recipient:
             return jsonify({'error': 'Recipient not found'}), 404
         
-        # Verify recipient is the client of this case
-        if case.client_id != recipient_id:
-            return jsonify({'error': 'Can only send messages to the case client'}), 403
+        # Prevent self-targeting in malformed case assignments.
+        if int(recipient_id) == int(current_user_id):
+            return jsonify({'error': 'Cannot send message to yourself for this case'}), 400
         
         # Create message
         message = Message(
@@ -319,41 +340,44 @@ def get_conversations():
             # Get messages for this case
             messages = Message.query.filter_by(case_id=case.id).order_by(Message.created_at.desc()).all()
             
-            if messages:
-                # Get unread count for this conversation
-                unread_count = sum(1 for m in messages if m.recipient_id == current_user_id and not m.read)
-                
-                # Get the other party in the conversation
-                last_message = messages[0]
-                if user.role == Role.CLIENT:
-                    other_user = User.query.get(case.assigned_to_id) if case.assigned_to_id else None
-                else:
-                    other_user = User.query.get(case.client_id)
-                
-                conversations.append({
-                    'case_id': case.id,
-                    'case_title': case.title,
-                    'case_reference': f'CASE-{str(case.id).zfill(4)}',
-                    'case_status': case.status.value if case.status else None,
-                    'unread_count': unread_count,
-                    'message_count': len(messages),
-                    'last_message': {
-                        'id': last_message.id,
-                        'content': last_message.content,
-                        'created_at': last_message.created_at.isoformat() if last_message.created_at else None,
-                        'sender_id': last_message.sender_id,
-                        'read': last_message.read
-                    },
-                    'other_party': {
-                        'id': other_user.id,
-                        'name': other_user.name,
-                        'email': other_user.email,
-                        'role': other_user.role.value if other_user.role else None
-                    } if other_user else None
-                })
+            # Determine the other party based on user role
+            if user.role == Role.CLIENT:
+                other_user = User.query.get(case.assigned_to_id) if case.assigned_to_id else None
+            else:
+                other_user = User.query.get(case.client_id)
+            
+            # Get unread count for this conversation
+            unread_count = sum(1 for m in messages if m.recipient_id == current_user_id and not m.read) if messages else 0
+            
+            # Include all cases, even those with no messages yet
+            last_message = messages[0] if messages else None
+            
+            conversations.append({
+                'case_id': case.id,
+                'case_title': case.title,
+                'case_reference': f'CASE-{str(case.id).zfill(4)}',
+                'case_status': case.status.value if case.status else None,
+                'unread_count': unread_count,
+                'message_count': len(messages),
+                'last_message': {
+                    'id': last_message.id,
+                    'content': last_message.content,
+                    'created_at': last_message.created_at.isoformat() if last_message.created_at else None,
+                    'sender_id': last_message.sender_id,
+                    'read': last_message.read
+                } if last_message else None,
+                'other_party': {
+                    'id': other_user.id,
+                    'name': other_user.name,
+                    'email': other_user.email,
+                    'role': other_user.role.value if other_user.role else None
+                } if other_user else None
+            })
         
-        # Sort by last message time
-        conversations.sort(key=lambda x: x['last_message']['created_at'], reverse=True)
+        # Sort by last message time (newest first), with cases without messages at the end
+        conversations.sort(key=lambda x: (
+            x['last_message']['created_at'] if x['last_message'] else '0000-01-01'
+        ), reverse=True)
         
         return jsonify({
             'conversations': conversations,

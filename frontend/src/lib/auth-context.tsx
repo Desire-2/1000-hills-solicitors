@@ -45,13 +45,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         console.log('[AuthContext] No user data in response');
         setUser(null);
-        apiService.clearToken();
+        // Only clear token when backend confirms auth is invalid.
+        if (response.status === 401) {
+          apiService.clearToken();
+        }
         return null;
       }
     } catch (error) {
       console.error('[AuthContext] refreshUser error:', error);
       setUser(null);
-      apiService.clearToken();
       return null;
     } finally {
       setLoading(false);
@@ -61,6 +63,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     console.log('[AuthContext] login called with:', email);
     try {
+      // If there is already a valid session, reuse it instead of re-authenticating.
+      if (user) {
+        return { success: true, user };
+      }
+
+      const existingToken = apiService.getToken();
+      if (existingToken) {
+        const existingUser = await refreshUser();
+        if (existingUser) {
+          return { success: true, user: existingUser };
+        }
+      }
+
       const response = await apiService.login(email, password);
       console.log('[AuthContext] apiService.login response:', response);
       if (response.error) {
