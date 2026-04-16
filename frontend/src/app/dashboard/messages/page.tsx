@@ -55,6 +55,7 @@ function MessagesContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
+  const [availableCases, setAvailableCases] = useState<Case[]>([]);
 
   const fetchMessagesData = useCallback(async () => {
     try {
@@ -95,6 +96,12 @@ function MessagesContent() {
       });
 
       setConversations(conversationGroups);
+      
+      // Fetch available cases for the user
+      const casesResponse = await apiService.getCases();
+      if (!casesResponse.error && casesResponse.data) {
+        setAvailableCases(casesResponse.data);
+      }
       
       // Auto-select first conversation if none selected
       if (!selectedCaseId && conversationGroups.length > 0) {
